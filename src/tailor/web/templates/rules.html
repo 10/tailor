@@ -1,0 +1,19 @@
+<section class="page-head">
+  <div>
+    <h1>Rules</h1>
+    <p class="sub">$count loaded · $enabled_count enabled</p>
+  </div>
+  <div class="head-actions">
+    <form method="post" action="/rules/reload">
+      <button class="btn">↻ Reload</button>
+    </form>
+    <a class="btn primary" href="/rules/new">+ New rule</a>
+  </div>
+</section>
+$load_errors
+<div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Rule</th><th>Hooks</th><th>State</th><th></th></tr></thead>
+    <tbody>$rows</tbody>
+  </table>
+</div>

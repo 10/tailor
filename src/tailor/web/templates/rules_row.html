@@ -1,0 +1,23 @@
+<tr>
+  <td class="col-rule">
+    <div class="rule-name">$name</div>
+    <div class="rule-meta"><code>$id</code> · $source</div>
+    <div class="rule-desc">$description</div>
+    $error
+  </td>
+  <td class="col-hooks">$hooks</td>
+  <td class="col-state"><span class="pill $pill_class">$state</span></td>
+  <td class="actions col-actions">
+    <div class="row-actions">
+      <a class="btn" href="/rules/edit?file=$source">Edit</a>
+      <form method="post" action="/rules/${id}/toggle">
+        <button class="btn $btn_class">$btn_label</button>
+      </form>
+      <form method="post" action="/rules/delete"
+            onsubmit="return confirm('Delete $source? This removes the whole file.')">
+        <input type="hidden" name="file" value="$source">
+        <button class="btn danger" title="Delete $source">Delete</button>
+      </form>
+    </div>
+  </td>
+</tr>

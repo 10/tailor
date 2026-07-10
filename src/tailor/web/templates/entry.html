@@ -1,0 +1,24 @@
+<a href="/traffic" class="back">← Traffic</a>
+<section class="entry-head">
+  <span class="badge method">$method</span>
+  <span class="badge status-code $status_class">$status</span>
+  <span class="entry-url">$url</span>
+</section>
+<p class="matched-line">Matched: $matched</p>
+$error
+<div class="panels">
+  <section>
+    <h2>Request</h2>
+    <h3>Headers</h3>
+    <pre>$req_headers</pre>
+    <h3>Body</h3>
+    $req_body
+  </section>
+  <section>
+    <h2>Response</h2>
+    <h3>Headers</h3>
+    <pre>$resp_headers</pre>
+    <h3>Body</h3>
+    $resp_body
+  </section>
+</div>

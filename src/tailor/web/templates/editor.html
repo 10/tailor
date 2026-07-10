@@ -1,0 +1,86 @@
+<section class="page-head">
+  <div>
+    <h1>$heading</h1>
+    <p class="sub">Rules are plain Python — saved files hot-reload into the proxy.</p>
+  </div>
+</section>
+$error
+<form method="post" action="/rules/save" class="editor">
+  <label class="field">
+    <span class="field-label">Filename</span>
+    <input class="input" name="filename" value="$filename" placeholder="my_rule.py"
+           autocomplete="off" autocapitalize="off" spellcheck="false" required>
+  </label>
+  <input type="hidden" name="original" value="$original">
+  <div class="field">
+    <span class="field-label">Source</span>
+    <div class="code-editor">
+      <pre class="code-hl" aria-hidden="true"></pre>
+      <textarea class="code" name="source" spellcheck="false" autocapitalize="off"
+                autocomplete="off" autocorrect="off" wrap="off">$source</textarea>
+    </div>
+  </div>
+  <div class="editor-actions">
+    <a class="btn" href="/">Cancel</a>
+    <button class="btn primary" type="submit">Save rule</button>
+  </div>
+</form>
+<script>
+(function () {
+  var ta = document.querySelector("textarea.code");
+  var pre = document.querySelector(".code-hl");
+
+  var KW = new Set(("def class return if elif else for while try except finally with as " +
+    "import from pass raise in not and or is lambda yield global nonlocal assert break " +
+    "continue del async await None True False").split(" "));
+  var BUILTIN = new Set(("print len range dict list set tuple str int float bool " +
+    "isinstance enumerate zip map filter open json self cls").split(" "));
+  var TOKEN = /(#[^\n]*)|('''[\s\S]*?'''|"""[\s\S]*?"""|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")|(\b\d[\d.]*\b)|(@[A-Za-z_]\w*)|([A-Za-z_]\w*)/g;
+
+  function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function highlight(src) {
+    var out = "", last = 0, prev = "", m;
+    while ((m = TOKEN.exec(src))) {
+      out += esc(src.slice(last, m.index));
+      var full = m[0], cls = "";
+      if (m[1]) cls = "c";
+      else if (m[2]) cls = "s";
+      else if (m[3]) cls = "n";
+      else if (m[4]) cls = "d";
+      else if (m[5]) {
+        if (KW.has(full)) cls = "k";
+        else if (prev === "def" || prev === "class") cls = "f";
+        else if (BUILTIN.has(full)) cls = "b";
+      }
+      out += cls ? '<span class="t-' + cls + '">' + esc(full) + "</span>" : esc(full);
+      prev = m[5] ? full : "";
+      last = m.index + full.length;
+    }
+    out += esc(src.slice(last)) + "\n";
+    return out;
+  }
+  function update() { pre.innerHTML = highlight(ta.value); }
+  function sync() { pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft; }
+
+  ta.addEventListener("input", update);
+  ta.addEventListener("scroll", sync);
+  ta.addEventListener("keydown", function (e) {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      var s = ta.selectionStart, en = ta.selectionEnd;
+      ta.value = ta.value.slice(0, s) + "    " + ta.value.slice(en);
+      ta.selectionStart = ta.selectionEnd = s + 4;
+      update();
+    }
+  });
+  document.addEventListener("keydown", function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      ta.form.submit();
+    }
+  });
+  update();
+})();
+</script>

@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.env
+.venv/
+env/
+venv/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Test, lint, and coverage caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Project runtime state
+tailor.db
+rule_state.json
+
+# Local editor and agent state
+.DS_Store
+.claude/
+.codex/
+.agents/
+.cursorignore
+.cursorindexingignore

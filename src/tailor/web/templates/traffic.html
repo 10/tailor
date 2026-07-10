@@ -1,0 +1,25 @@
+<section class="page-head">
+  <div>
+    <h1>Traffic</h1>
+    <p class="sub">Most recent 200 requests · newest first</p>
+  </div>
+</section>
+<div class="filters">
+  <div class="segment">
+    <a href="/traffic" class="$all_active">All</a>
+    <a href="/traffic?matched=1" class="$matched_active">Matched only</a>
+  </div>
+  $filter_tag
+</div>
+<div class="table-wrap">
+  <table class="data traffic">
+    <thead><tr><th>Time</th><th>Method</th><th>Status</th><th>URL</th><th>Matched</th></tr></thead>
+    <tbody>$rows</tbody>
+  </table>
+</div>
+<script>
+document.querySelector("table.traffic").addEventListener("click", function (e) {
+  var row = e.target.closest("tr.clickable");
+  if (row && !e.target.closest("a")) window.location = row.dataset.href;
+});
+</script>
