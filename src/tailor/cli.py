@@ -2,6 +2,7 @@
 
 import argparse
 import socket
+import subprocess
 import sys
 from pathlib import Path
 
@@ -18,6 +19,18 @@ def _port_in_use(host: str, port: int) -> bool:
             return False
         except OSError:
             return True
+
+
+def _tailscale_ip() -> str | None:
+    for executable in ("tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"):
+        try:
+            output = subprocess.check_output(
+                [executable, "ip", "-4"], stderr=subprocess.DEVNULL, text=True, timeout=1
+            )
+            return output.strip().splitlines()[0]
+        except (OSError, subprocess.SubprocessError, IndexError):
+            pass
+    return None
 
 
 def _add_common(p: argparse.ArgumentParser) -> None:
@@ -88,6 +101,11 @@ def cmd_serve(args) -> None:
     start_web(loader, store, args.ui_host, args.ui_port, proxy_addr)
     print(f"Web UI:  http://{args.ui_host}:{args.ui_port}")
     print(f"Proxy:   http://{proxy_addr}  ({len(loader.rules)} rules)")
+    tailscale_ip = _tailscale_ip()
+    if tailscale_ip and args.ui_host == "0.0.0.0":
+        print(f"Tailscale Web UI: http://{tailscale_ip}:{args.ui_port}")
+    if tailscale_ip and args.proxy_host == "0.0.0.0":
+        print(f"Tailscale Proxy:  http://{tailscale_ip}:{args.proxy_port}")
     print("Point your device's HTTP/HTTPS proxy here. Ctrl-C to stop.")
     run_proxy(loader, store, args.proxy_host, args.proxy_port)
 
