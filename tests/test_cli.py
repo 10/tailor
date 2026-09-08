@@ -3,16 +3,10 @@ from types import SimpleNamespace
 from tailor import cli
 
 
-def test_serve_shows_tailscale_urls(monkeypatch, capsys, tmp_path):
-    args = SimpleNamespace(
-        history=tmp_path / "tailor.db",
-        proxy_host="0.0.0.0",
-        proxy_port=47080,
-        ui_host="0.0.0.0",
-        ui_port=47081,
-    )
+def test_serve_shows_tailscale_urls(monkeypatch, capsys):
+    args = cli.build_parser().parse_args(["serve"])
     monkeypatch.setattr(cli, "_port_in_use", lambda host, port: False)
-    monkeypatch.setattr(cli, "_loader", lambda args: SimpleNamespace(rules=range(5)))
+    monkeypatch.setattr(cli, "RuleLoader", lambda *args: SimpleNamespace(rules=range(5)))
     monkeypatch.setattr(cli, "TrafficStore", lambda path: object())
     monkeypatch.setattr(cli, "start_web", lambda *args: None)
     monkeypatch.setattr(cli, "run_proxy", lambda *args: None)

@@ -39,10 +39,6 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--history", default="tailor.db", help="SQLite traffic history path")
 
 
-def _loader(args) -> RuleLoader:
-    return RuleLoader(args.rules_dir, args.state, getattr(args, "hot_reload", True))
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tailor", description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -95,7 +91,7 @@ def cmd_serve(args) -> None:
             )
             sys.exit(1)
 
-    loader = _loader(args)
+    loader = RuleLoader(args.rules_dir, args.state, args.hot_reload)
     store = TrafficStore(args.history)
     proxy_addr = f"{args.proxy_host}:{args.proxy_port}"
     start_web(loader, store, args.ui_host, args.ui_port, proxy_addr)
@@ -111,20 +107,18 @@ def cmd_serve(args) -> None:
 
 
 def cmd_rules_list(args) -> None:
-    loader = _loader(args)
+    loader = RuleLoader(args.rules_dir, args.state)
     if not loader.rules:
         print("No rules found in", args.rules_dir)
     for lr in loader.rules.values():
         state = "on " if loader.is_enabled(lr.rule.id) else "off"
         print(f"[{state}] {lr.rule.id:24} {lr.rule.name}  ({lr.source})")
-        if lr.runtime_error:
-            print("        last error:", lr.runtime_error.strip().splitlines()[-1])
     for fn, tb in loader.load_errors.items():
         print(f"[ERR] {fn}: {tb.strip().splitlines()[-1]}")
 
 
 def cmd_rules_toggle(args) -> None:
-    loader = _loader(args)
+    loader = RuleLoader(args.rules_dir, args.state)
     loader.set_enabled(args.rule_id, args.enabled)
     print(f"{args.rule_id} {'enabled' if args.enabled else 'disabled'}")
 

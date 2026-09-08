@@ -123,8 +123,7 @@ class RuleLoader:
         return self._safe_path(filename).read_text()
 
     def save_file(self, filename: str, source: str, original: str = "") -> None:
-        """Validate + write a rule file, then reload. Raises ValueError/SyntaxError
-        with a user-facing message on bad input."""
+        """Validate, write, and reload a rule file; raise ValueError on bad input."""
         path = self._safe_path(filename)
         try:
             compile(source, filename, "exec")
