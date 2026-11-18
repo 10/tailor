@@ -9,10 +9,11 @@ import html
 import json
 import threading
 import time
+from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from string import Template
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 
 from ..rule_loader import NEW_RULE_TEMPLATE, RuleLoader
 from ..traffic_store import TrafficStore
@@ -118,7 +119,7 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             self._redirect()
         elif path.startswith("/rules/") and path.endswith("/toggle"):
-            rule_id = path[len("/rules/"):-len("/toggle")]
+            rule_id = unquote(path[len("/rules/"):-len("/toggle")])
             self.loader.set_enabled(rule_id, not self.loader.is_enabled(rule_id))
             self._redirect()
         else:
@@ -163,7 +164,9 @@ class Handler(BaseHTTPRequestHandler):
     def _rules_body(self) -> str:
         rows = []
         enabled_count = 0
-        for lr in self.loader.rules.values():
+        rules = self.loader.rules
+        file_counts = Counter(lr.source for lr in rules.values())
+        for lr in rules.values():
             r = lr.rule
             on = self.loader.is_enabled(r.id)
             enabled_count += on
@@ -177,8 +180,11 @@ class Handler(BaseHTTPRequestHandler):
                 render(
                     "rules_row.html",
                     id=_esc(r.id),
+                    toggle_id=quote(r.id, safe=""),
                     name=_esc(r.name or r.id),
                     source=_esc(lr.source),
+                    delete_scope=(f"all {file_counts[lr.source]} rules in this file"
+                                  if file_counts[lr.source] > 1 else "the whole file"),
                     description=_esc(r.description),
                     hooks=hooks or '<span class="hook">—</span>',
                     error=error,
@@ -206,7 +212,7 @@ class Handler(BaseHTTPRequestHandler):
             load_errors = f'<div class="load-errors"><h2>Load errors</h2>{items}</div>'
         return render(
             "rules.html",
-            count=f"{len(self.loader.rules)} rule(s)",
+            count=f"{len(rules)} rule(s)",
             enabled_count=enabled_count,
             load_errors=load_errors,
             rows="".join(rows),
@@ -222,7 +228,7 @@ class Handler(BaseHTTPRequestHandler):
             when = time.strftime("%H:%M:%S", time.localtime(e["ts"]))
             flag = '<span class="warn-mark">⚠</span>' if e["error"] else ""
             chips = "".join(
-                f'<a class="chip" href="/traffic?rule={_esc(rid)}">{_esc(rid)}</a>'
+                f'<a class="chip" href="/traffic?{urlencode({"rule": rid})}">{_esc(rid)}</a>'
                 for rid in e["matched"]
             )
             rows.append(

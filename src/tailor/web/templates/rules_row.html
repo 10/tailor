@@ -10,11 +10,12 @@
   <td class="actions col-actions">
     <div class="row-actions">
       <a class="btn" href="/rules/edit?file=$source">Edit</a>
-      <form method="post" action="/rules/${id}/toggle">
+      <form method="post" action="/rules/${toggle_id}/toggle">
         <button class="btn $btn_class">$btn_label</button>
       </form>
       <form method="post" action="/rules/delete"
-            onsubmit="return confirm('Delete $source? This removes the whole file.')">
+            data-confirm="Delete $source? This removes $delete_scope."
+            onsubmit="return confirm(this.dataset.confirm)">
         <input type="hidden" name="file" value="$source">
         <button class="btn danger" title="Delete $source">Delete</button>
       </form>

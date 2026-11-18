@@ -125,17 +125,36 @@ class RuleLoader:
     def save_file(self, filename: str, source: str, original: str = "") -> None:
         """Validate, write, and reload a rule file; raise ValueError on bad input."""
         path = self._safe_path(filename)
+        if filename.startswith("_") and filename != original:
+            raise ValueError("Choose a rule filename without a leading _. Tailor skips those files.")
         try:
             compile(source, filename, "exec")
         except SyntaxError as exc:
             raise ValueError(f"Line {exc.lineno}: {exc.msg}") from exc
-        path.write_text(source)
-        if original and original != filename:
-            self._safe_path(original).unlink(missing_ok=True)
+        old_path = self._safe_path(original) if original else None
+        with self._lock:
+            if old_path is not None and not old_path.is_file():
+                raise ValueError(f"{original} no longer exists")
+            if old_path == path:
+                path.write_text(source)
+            else:
+                try:
+                    target = path.open("x")
+                except FileExistsError:
+                    raise ValueError(f"{filename} already exists. Choose another filename.") from None
+                try:
+                    with target:
+                        target.write(source)
+                    if old_path is not None:
+                        old_path.unlink()
+                except OSError:
+                    path.unlink(missing_ok=True)
+                    raise
         self.load()
 
     def delete_file(self, filename: str) -> None:
-        self._safe_path(filename).unlink(missing_ok=True)
+        with self._lock:
+            self._safe_path(filename).unlink(missing_ok=True)
         self.load()
 
     def record_error(self, rule_id: str, exc: Exception) -> None:
