@@ -56,3 +56,32 @@ def test_dashboard_rejects_foreign_form_submissions(dashboard):
         assert request("/missing", "POST", headers)[0] == 403
     assert request("/rules/reload", "POST", {"Sec-Fetch-Site": "same-origin"})[0] == 303
     assert request("/rules/reload", "POST")[0] == 303
+
+
+def test_traffic_filters_search_the_retained_history(dashboard):
+    request, store = dashboard
+    record = dict(ts=0, method="GET", host="fixture.test", path="/old-match", status=200,
+                  matched=["docs"], req_headers={}, req_body="private request",
+                  resp_headers={}, resp_body="private response", error="")
+    store.add(record)
+    for i in range(201):
+        store.add({**record, "path": f"/newer/{i}", "matched": []})
+    store.add({**record, "path": "/other-rule", "matched": ["docs-extra"]})
+
+    all_rows = request("/traffic")[2]
+    assert all_rows.count('class="clickable"') == 200
+    assert "/old-match" not in all_rows
+    matches = request("/traffic?matched=1")[2]
+    assert matches.index("/other-rule") < matches.index("/old-match")
+    by_rule = request("/traffic?rule=docs")[2]
+    assert "/old-match" in by_rule and "/other-rule" not in by_rule
+    assert "private request" not in by_rule
+    assert "private request" in request("/traffic/1")[2]
+
+
+def test_invalid_traffic_links_render_a_missing_entry(dashboard):
+    request, _ = dashboard
+    for suffix in ("", "missing", "extra/1", "9223372036854775808", "0"):
+        status, _, page = request(f"/traffic/{suffix}")
+        assert status == 404
+        assert "Entry not found" in page
