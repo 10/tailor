@@ -68,7 +68,23 @@ class TrafficStore:
             ).fetchall()
         return [_row_to_dict(r) for r in rows]
 
-    def get(self, entry_id: int) -> dict[str, Any] | None:
+    def summaries(self, limit: int, only_matched: bool, rule: str) -> list[dict[str, Any]]:
+        entries = []
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT id, ts, method, host, path, status, matched, error != '' AS has_error
+                   FROM traffic ORDER BY id DESC"""
+            )
+            for row in rows:
+                if len(entries) >= limit:
+                    break
+                matched = json.loads(row["matched"] or "[]")
+                if (only_matched and not matched) or (rule and rule not in matched):
+                    continue
+                entries.append({**row, "matched": matched})
+        return entries
+
+    def get(self, entry_id: int | str) -> dict[str, Any] | None:
         with self._lock:
             row = self._db.execute(
                 "SELECT * FROM traffic WHERE id = ?", (entry_id,)

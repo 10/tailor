@@ -50,11 +50,13 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- response helpers ---
     def _page(self, title: str, nav_current: str, body: str, status: int = 200) -> None:
+        current = "page" if urlparse(self.path).path == nav_current else "location"
+        current_attr = f' aria-current="{current}"'
         doc = render(
             "base.html",
             title=_esc(title),
             nav="".join(
-                f'<a href="{href}" class="{"active" if href == nav_current else ""}">{label}</a>'
+                f'<a href="{href}"{current_attr if href == nav_current else ""}>{label}</a>'
                 for href, label in (("/", "Rules"), ("/traffic", "Traffic"))
             ),
             proxy_addr=_esc(self.proxy_addr),
@@ -96,7 +98,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/rules/edit":
             self._edit_page(parse_qs(parsed.query).get("file", [""])[0])
         elif path.startswith("/traffic/"):
-            self._entry(int(path.rsplit("/", 1)[1]))
+            self._entry(path.removeprefix("/traffic/"))
         elif path == "/static/style.css":
             self._write((HERE / "static/style.css").read_bytes(), 200, "text/css")
         else:
@@ -224,13 +226,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def _traffic_body(self, only_matched: bool, rule: str) -> str:
         rows = []
-        for e in self.store.recent(200):
-            if rule and rule not in e["matched"]:
-                continue
-            if only_matched and not e["matched"]:
-                continue
+        for e in self.store.summaries(200, only_matched, rule):
             when = time.strftime("%H:%M:%S", time.localtime(e["ts"]))
-            flag = '<span class="warn-mark">⚠</span>' if e["error"] else ""
+            flag = '<span class="warn-mark">⚠</span>' if e["has_error"] else ""
             chips = "".join(
                 f'<a class="chip" href="/traffic?rule={_esc(rid)}">{_esc(rid)}</a>'
                 for rid in e["matched"]
@@ -265,25 +263,28 @@ class Handler(BaseHTTPRequestHandler):
             )
         return render(
             "traffic.html",
-            all_active="" if (only_matched or rule) else "active",
-            matched_active="active" if only_matched else "",
+            scope="matching requests" if (only_matched or rule) else "requests",
+            all_active='aria-current="page"' if not (only_matched or rule) else "",
+            matched_active='aria-current="page"' if only_matched and not rule else "",
             filter_tag=filter_tag,
             rows="".join(rows),
         )
 
-    def _entry(self, entry_id: int) -> None:
-        e = self.store.get(entry_id)
+    def _entry(self, entry_id: str) -> None:
+        e = self.store.get(entry_id) if entry_id.isascii() and entry_id.isdecimal() else None
         if not e:
             self._page("Not found", "/traffic", '<p class="sub">Entry not found</p>', 404)
             return
 
-        def body_block(text: str) -> str:
-            return f"<pre>{_esc(text)}</pre>" if text else '<pre class="empty">empty</pre>'
+        def body_block(text: str, label: str) -> str:
+            if not text:
+                return '<pre class="empty">empty</pre>'
+            return f'<pre tabindex="0" role="group" aria-label="{label}">{_esc(text)}</pre>'
 
         error = f'<div class="trace">{_esc(e["error"])}</div>' if e["error"] else ""
         matched = ", ".join(e["matched"]) or "none"
         self._page(
-            f"Entry {entry_id}", "/traffic",
+            f"Entry {e['id']}", "/traffic",
             render(
                 "entry.html",
                 method=_esc(e["method"]),
@@ -293,9 +294,9 @@ class Handler(BaseHTTPRequestHandler):
                 matched=_esc(matched),
                 error=error,
                 req_headers=_esc(json.dumps(e["req_headers"], indent=2)),
-                req_body=body_block(e["req_body"]),
+                req_body=body_block(e["req_body"], "Request body"),
                 resp_headers=_esc(json.dumps(e["resp_headers"], indent=2)),
-                resp_body=body_block(e["resp_body"]),
+                resp_body=body_block(e["resp_body"], "Response body"),
             ),
         )
 
