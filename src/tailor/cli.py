@@ -2,14 +2,20 @@
 
 import argparse
 import socket
+import sqlite3
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
-from .proxy import run_proxy
-from .rule_loader import RuleLoader
-from .traffic_store import TrafficStore
-from .web.server import start_web
+from .traffic_store import TrafficStore, clear_history, history_summary
+
+
+def _port(value: str) -> int:
+    port = int(value)
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("port must be between 1 and 65535")
+    return port
 
 
 def _port_in_use(host: str, port: int) -> bool:
@@ -33,10 +39,14 @@ def _tailscale_ip() -> str | None:
     return None
 
 
+def _add_history_path(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--history", default="tailor.db", help="SQLite traffic history path")
+
+
 def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--rules-dir", default="rules", help="directory of rule .py files")
     p.add_argument("--state", default="rule_state.json", help="rule enable/disable state file")
-    p.add_argument("--history", default="tailor.db", help="SQLite traffic history path")
+    _add_history_path(p)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -46,9 +56,9 @@ def build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="start the proxy and web UI")
     _add_common(serve)
     serve.add_argument("--proxy-host", default="0.0.0.0")
-    serve.add_argument("--proxy-port", type=int, default=47080)
+    serve.add_argument("--proxy-port", type=_port, default=47080)
     serve.add_argument("--ui-host", default="0.0.0.0")
-    serve.add_argument("--ui-port", type=int, default=47081)
+    serve.add_argument("--ui-port", type=_port, default=47081)
     serve.add_argument("--no-hot-reload", dest="hot_reload", action="store_false")
     serve.set_defaults(func=cmd_serve)
 
@@ -71,6 +81,9 @@ def build_parser() -> argparse.ArgumentParser:
     hist = sub.add_parser("history", help="manage traffic history").add_subparsers(
         dest="hcmd", required=True
     )
+    hinfo = hist.add_parser("info", help="show the size, count and time range of saved traffic")
+    _add_history_path(hinfo)
+    hinfo.set_defaults(func=cmd_history_info)
     hclear = hist.add_parser("clear")
     _add_common(hclear)
     hclear.set_defaults(func=cmd_history_clear)
@@ -79,6 +92,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def cmd_serve(args) -> None:
+    from .proxy import run_proxy
+    from .rule_loader import RuleLoader
+    from .web.server import start_web
+
     for label, host, port, flag in (
         ("Proxy", args.proxy_host, args.proxy_port, "--proxy-port"),
         ("Web UI", args.ui_host, args.ui_port, "--ui-port"),
@@ -107,6 +124,8 @@ def cmd_serve(args) -> None:
 
 
 def cmd_rules_list(args) -> None:
+    from .rule_loader import RuleLoader
+
     loader = RuleLoader(args.rules_dir, args.state)
     if not loader.rules:
         print("No rules found in", args.rules_dir)
@@ -118,6 +137,8 @@ def cmd_rules_list(args) -> None:
 
 
 def cmd_rules_toggle(args) -> None:
+    from .rule_loader import RuleLoader
+
     loader = RuleLoader(args.rules_dir, args.state)
     loader.set_enabled(args.rule_id, args.enabled)
     print(f"{args.rule_id} {'enabled' if args.enabled else 'disabled'}")
@@ -130,8 +151,28 @@ def cmd_rules_reload(args) -> None:
     print(f"Touched {len(files)} rule file(s); a running server will hot-reload.")
 
 
+def cmd_history_info(args) -> None:
+    try:
+        size, count, oldest, newest = history_summary(args.history)
+    except FileNotFoundError:
+        print(f"No history database at {args.history}.")
+        return
+    except (OSError, sqlite3.Error) as exc:
+        sys.exit(f"Could not read {args.history}: {exc}")
+
+    print(f"History: {args.history}")
+    print(f"Database size: {size:,} bytes")
+    print(f"Retained entries: {count}")
+    for label, ts in (("Oldest", oldest), ("Newest", newest)):
+        if ts is not None:
+            print(f"{label}: {datetime.fromtimestamp(ts).astimezone():%Y-%m-%d %H:%M:%S %Z}")
+
+
 def cmd_history_clear(args) -> None:
-    n = TrafficStore(args.history).clear()
+    try:
+        n = clear_history(args.history)
+    except (OSError, sqlite3.Error) as exc:
+        sys.exit(f"Could not clear {args.history}: {exc}")
     print(f"Cleared {n} history entries.")
 
 
