@@ -13,15 +13,16 @@ $error
   </label>
   <input type="hidden" name="original" value="$original">
   <div class="field">
-    <span class="field-label">Source</span>
+    <label class="field-label" for="source">Source</label>
     <div class="code-editor">
-      <pre class="code-hl" aria-hidden="true"></pre>
-      <textarea class="code" name="source" spellcheck="false" autocapitalize="off"
+      <pre class="code-hl" aria-hidden="true" tabindex="-1"></pre>
+      <textarea class="code" id="source" name="source" spellcheck="false" autocapitalize="off"
                 autocomplete="off" autocorrect="off" wrap="off">$source</textarea>
     </div>
+    <span class="sub" id="source-keys" hidden>Tab indents. Esc moves to Cancel.</span>
   </div>
   <div class="editor-actions">
-    <a class="btn" href="/">Cancel</a>
+    <a class="btn" id="cancel" href="/">Cancel</a>
     <button class="btn primary" type="submit">Save rule</button>
   </div>
 </form>
@@ -67,7 +68,10 @@ $error
   ta.addEventListener("input", update);
   ta.addEventListener("scroll", sync);
   ta.addEventListener("keydown", function (e) {
-    if (e.key === "Tab") {
+    if (e.isComposing) return;
+    if (e.key === "Escape") {
+      document.getElementById("cancel").focus();
+    } else if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
       var s = ta.selectionStart, en = ta.selectionEnd;
       ta.value = ta.value.slice(0, s) + "    " + ta.value.slice(en);
@@ -76,11 +80,14 @@ $error
     }
   });
   document.addEventListener("keydown", function (e) {
+    if (e.isComposing) return;
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
       e.preventDefault();
-      ta.form.submit();
+      ta.form.requestSubmit();
     }
   });
+  document.getElementById("source-keys").hidden = false;
+  ta.setAttribute("aria-describedby", "source-keys");
   update();
 })();
 </script>

@@ -108,3 +108,47 @@ def test_file_crud(tmp_path):
 
     loader.delete_file("g.py")
     assert not loader.rules
+
+
+def test_editor_preserves_existing_files_on_name_collision(tmp_path):
+    loader = RuleLoader(tmp_path, tmp_path / "state.json")
+    loader.save_file("first.py", NEW_RULE_TEMPLATE)
+    other = NEW_RULE_TEMPLATE.replace("my_rule", "other")
+    loader.save_file("second.py", other)
+
+    for original in ("", "first.py"):
+        with pytest.raises(ValueError, match="already exists"):
+            loader.save_file("second.py", NEW_RULE_TEMPLATE, original)
+        assert loader.read_file("second.py") == other
+        assert loader.read_file("first.py") == NEW_RULE_TEMPLATE
+
+    loader.save_file("second.py", other + "\n", original="second.py")
+    assert loader.read_file("second.py") == other + "\n"
+
+
+def test_new_rule_cannot_be_saved_under_an_ignored_name(tmp_path):
+    loader = RuleLoader(tmp_path, tmp_path / "state.json")
+    loader.save_file("visible.py", NEW_RULE_TEMPLATE)
+    for original in ("", "visible.py"):
+        with pytest.raises(ValueError, match="skips"):
+            loader.save_file("_hidden.py", NEW_RULE_TEMPLATE, original)
+        assert not (tmp_path / "_hidden.py").exists()
+        assert loader.read_file("visible.py") == NEW_RULE_TEMPLATE
+
+
+def test_rename_preserves_an_existing_alias(tmp_path):
+    loader = RuleLoader(tmp_path, tmp_path / "state.json")
+    loader.save_file("daily.py", NEW_RULE_TEMPLATE)
+    alias = tmp_path / "alias.py"
+    alias.symlink_to("daily.py")
+    draft = NEW_RULE_TEMPLATE.replace("my_rule", "draft")
+
+    with pytest.raises(ValueError, match="already exists"):
+        loader.save_file("alias.py", draft, original="daily.py")
+    assert loader.read_file("daily.py") == NEW_RULE_TEMPLATE
+    assert alias.is_symlink()
+
+    loader.save_file("renamed.py", draft, original="alias.py")
+    assert loader.read_file("daily.py") == NEW_RULE_TEMPLATE
+    assert loader.read_file("renamed.py") == draft
+    assert not alias.is_symlink()

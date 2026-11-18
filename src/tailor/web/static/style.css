@@ -392,11 +392,13 @@ pre.empty { color: var(--muted); font-style: italic; }
 }
 .code {
   z-index: 1;
-  background: transparent;
-  color: transparent;
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border);
   caret-color: var(--accent);
   resize: none;
 }
+.code-hl:not(:empty) + .code { background: transparent; color: transparent; border-color: transparent; }
 .code-editor:focus-within .code-hl {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 32%, transparent);
@@ -461,7 +463,6 @@ pre.empty { color: var(--muted); font-style: italic; }
   /* rules: full-width info block, state row, then a full-width action bar */
   .data:not(.traffic) tbody tr { display: grid; grid-template-columns: 1fr auto; gap: 10px 12px; padding: 15px; align-items: center; }
   .col-rule { grid-column: 1 / -1; }
-  .col-hooks { display: none; }
   .col-state { justify-self: start; }
   .col-actions { grid-column: 1 / -1; }
   .col-actions .row-actions { justify-content: stretch; }
