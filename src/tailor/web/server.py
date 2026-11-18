@@ -64,6 +64,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _write(self, body: bytes, status: int, content_type: str) -> None:
         self.send_response(status)
+        if content_type.startswith("text/html"):
+            self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -105,6 +107,14 @@ class Handler(BaseHTTPRequestHandler):
         return {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
 
     def do_POST(self):
+        site = self.headers.get("Sec-Fetch-Site")
+        origin = self.headers.get("Origin")
+        local_origin = f"http://{self.headers.get('Host', '')}".lower()
+        if site in ("cross-site", "same-site") or (
+            site != "same-origin" and origin is not None and origin.lower() != local_origin
+        ):
+            self._page("Forbidden", "", '<p class="sub">Open Tailor to change rules.</p>', 403)
+            return
         path = urlparse(self.path).path
         if path == "/rules/reload":
             self.loader.load()
