@@ -1,8 +1,10 @@
 """SQLite-backed rolling traffic history."""
 
 import json
+import os
 import sqlite3
 import threading
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -12,15 +14,51 @@ BODY_PREVIEW_LIMIT = 4000
 
 def body_preview(text: str) -> str:
     if len(text) > BODY_PREVIEW_LIMIT:
-        return text[:BODY_PREVIEW_LIMIT] + f"\n... [{len(text)} bytes total]"
+        return text[:BODY_PREVIEW_LIMIT] + f"\n... [{len(text)} characters total]"
     return text
+
+
+def _open_existing(path: Path, mode: str, *, check_same_thread: bool = True) -> sqlite3.Connection:
+    return sqlite3.connect(
+        f"{path.absolute().as_uri()}?mode={mode}", uri=True, check_same_thread=check_same_thread
+    )
+
+
+def history_summary(path: Path) -> tuple[int, float | None, float | None]:
+    with closing(_open_existing(path, "ro")) as db:
+        return db.execute("SELECT count(*), min(ts), max(ts) FROM traffic").fetchone()
+
+
+def clear_history(db_path: str | Path) -> int:
+    path = Path(db_path)
+    if str(db_path) in ("", ":memory:") or not path.exists():
+        return 0
+    with closing(_open_existing(path, "rw")) as db, db:
+        db.execute("BEGIN IMMEDIATE")
+        # A different application can also have a table named traffic.
+        db.execute(
+            "SELECT id, ts, method, host, path, status, matched, req_headers, req_body, "
+            "resp_headers, resp_body, error FROM traffic LIMIT 0"
+        )
+        return db.execute("DELETE FROM traffic").rowcount
 
 
 class TrafficStore:
     def __init__(self, db_path: str | Path):
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        if str(db_path) in ("", ":memory:"):
+            self._db = sqlite3.connect(str(db_path), check_same_thread=False)
+        else:
+            path = Path(db_path).resolve()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            # SQLite inherits the permissions of an existing database.
+            try:
+                fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            except FileExistsError:
+                pass
+            else:
+                os.close(fd)
+            self._db = _open_existing(path, "rw", check_same_thread=False)
         self._lock = threading.Lock()
-        self._db = sqlite3.connect(str(db_path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.execute(
             """CREATE TABLE IF NOT EXISTS traffic (
