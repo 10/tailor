@@ -111,31 +111,33 @@ class RuleLoader:
         return [lr.rule for lr in self.rules.values() if state.get(lr.rule.id, True)]
 
     # --- file management (UI editor) ----------------------------------
-    def _safe_path(self, filename: str) -> Path:
+    def _safe_path(self, filename: str, *, follow_symlinks: bool = True) -> Path:
         if not re.match(r"^[A-Za-z0-9_-]+\.py$", filename):
             raise ValueError("Filename must be letters, numbers, _ or - and end in .py")
-        path = (self.rules_dir / filename).resolve()
-        if path.parent != self.rules_dir.resolve():
+        path = self.rules_dir / filename
+        resolved = path.resolve()
+        if resolved.parent != self.rules_dir.resolve():
             raise ValueError("Invalid filename")
-        return path
+        return resolved if follow_symlinks else path
 
     def read_file(self, filename: str) -> str:
         return self._safe_path(filename).read_text()
 
     def save_file(self, filename: str, source: str, original: str = "") -> None:
         """Validate, write, and reload a rule file; raise ValueError on bad input."""
-        path = self._safe_path(filename)
+        in_place = filename == original
+        path = self._safe_path(filename, follow_symlinks=in_place)
         if filename.startswith("_") and filename != original:
             raise ValueError("Choose a rule filename without a leading _. Tailor skips those files.")
         try:
             compile(source, filename, "exec")
         except SyntaxError as exc:
             raise ValueError(f"Line {exc.lineno}: {exc.msg}") from exc
-        old_path = self._safe_path(original) if original else None
+        old_path = self._safe_path(original, follow_symlinks=False) if original else None
         with self._lock:
             if old_path is not None and not old_path.is_file():
                 raise ValueError(f"{original} no longer exists")
-            if old_path == path:
+            if in_place:
                 path.write_text(source)
             else:
                 try:
@@ -154,7 +156,7 @@ class RuleLoader:
 
     def delete_file(self, filename: str) -> None:
         with self._lock:
-            self._safe_path(filename).unlink(missing_ok=True)
+            self._safe_path(filename, follow_symlinks=False).unlink(missing_ok=True)
         self.load()
 
     def record_error(self, rule_id: str, exc: Exception) -> None:
