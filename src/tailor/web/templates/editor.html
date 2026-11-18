@@ -68,6 +68,7 @@ $error
   ta.addEventListener("input", update);
   ta.addEventListener("scroll", sync);
   ta.addEventListener("keydown", function (e) {
+    if (e.isComposing) return;
     if (e.key === "Escape") {
       document.getElementById("cancel").focus();
     } else if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -79,6 +80,7 @@ $error
     }
   });
   document.addEventListener("keydown", function (e) {
+    if (e.isComposing) return;
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
       e.preventDefault();
       ta.form.requestSubmit();
