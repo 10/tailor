@@ -152,17 +152,15 @@ def cmd_rules_reload(args) -> None:
 
 
 def cmd_history_info(args) -> None:
-    path = Path(args.history)
     try:
-        size = path.stat().st_size
-        count, oldest, newest = history_summary(path)
+        size, count, oldest, newest = history_summary(args.history)
     except FileNotFoundError:
-        print(f"No history database at {path}.")
+        print(f"No history database at {args.history}.")
         return
     except (OSError, sqlite3.Error) as exc:
-        sys.exit(f"Could not read {path}: {exc}")
+        sys.exit(f"Could not read {args.history}: {exc}")
 
-    print(f"History: {path}")
+    print(f"History: {args.history}")
     print(f"Database size: {size:,} bytes")
     print(f"Retained entries: {count}")
     for label, ts in (("Oldest", oldest), ("Newest", newest)):

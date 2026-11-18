@@ -90,3 +90,35 @@ def test_history_info_reports_counts_without_opening_the_dashboard(tmp_path, cap
     assert "Oldest:" in output and "Newest:" in output
     assert "private.test" not in output and "private body" not in output
     assert path.read_bytes() == before
+
+
+def test_history_commands_use_the_database_selected_by_uri(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    uri = "file:sample%20%23+1.db?mode=rwc&cache=private"
+    store = cli.TrafficStore(uri)
+    store.add(dict(ts=1, method="GET", host="example.test", path="/", status=200,
+                   matched=[], req_headers={}, req_body="", resp_headers={}, resp_body="", error=""))
+    path = tmp_path / "sample #+1.db"
+    assert path.stat().st_mode & 0o077 == 0
+    readonly = uri.replace("mode=rwc", "mode=ro")
+    cli.main(["history", "info", "--history", readonly])
+    assert "Retained entries: 1" in capsys.readouterr().out
+    with pytest.raises(SystemExit, match="Could not clear"):
+        cli.main(["history", "clear", "--history", readonly])
+    cli.main(["history", "clear", "--history", uri])
+    assert "Cleared 1" in capsys.readouterr().out
+    assert store.recent() == []
+    assert list(tmp_path.iterdir()) == [path]
+
+
+@pytest.mark.parametrize("uri", ["file:session?mode=memory", "file::memory:?cache=private"])
+def test_memory_uri_never_creates_a_capture_file(tmp_path, monkeypatch, uri):
+    monkeypatch.chdir(tmp_path)
+    store = cli.TrafficStore(uri)
+    store.add(dict(ts=1, method="GET", host="example.test", path="/", status=200,
+                   matched=[], req_headers={}, req_body="only in memory",
+                   resp_headers={}, resp_body="", error=""))
+    assert store.recent()[0]["req_body"] == "only in memory"
+    cli.main(["history", "info", "--history", uri])
+    cli.main(["history", "clear", "--history", uri])
+    assert list(tmp_path.iterdir()) == []
